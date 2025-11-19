@@ -1,6 +1,7 @@
 import mysql.connector  
 import bcrypt  # for encrypting passwords
 
+# user CRUD management
 # making the connection to the mysql db
 def get_connection():
     conn = mysql.connector.connect(  # opens a connection the the mysql server
@@ -80,3 +81,7 @@ def delete_user(user_id):
     conn.commit()
     cursor.close()
     conn.close()
+
+# transactions management
+
+# sports events management
