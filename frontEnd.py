@@ -111,8 +111,3 @@ class wallet_frame(ttk.Frame):
 
         ttk.Button(self, text="Back",
                    command=lambda: controller.show_frame("home_frame")).pack(pady=10)
-
-# running the program
-if __name__ == "__main__":
-    app = app()
-    app.mainloop()
