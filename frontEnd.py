@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
+from tkinter import messagebox
 
 # main application class
 class app(tk.Tk):  # extending upon the tk.Tk class, this one defines the main GUI window
@@ -85,8 +86,26 @@ class register_frame(ttk.Frame):
         self.confirm_password_entry = ttk.Entry(self, show="*") 
         self.confirm_password_entry.pack()
 
+        ttk.Button(self, text="Create account", command=self.registration).pack(pady=10)  # button to create the account
+
         ttk.Button(self, text="Back",
                    command=lambda: controller.show_frame("home_frame")).pack(pady=10)
+    
+    def registration(self):
+        # getting all the values entered by the user
+        email = self.register_email_entry.get().strip()
+        username = self.register_username_entry.get().strip()
+        password = self.register_password_entry.get()
+        confirm_password = self.confirm_password_entry.get()
+
+        if not email or not username or not password or not confirm_password:  # if any of these fields are an empty string
+            print("All fields are required.")
+            messagebox.showerror("Error", "All fields are required.")  # error message popup
+        elif password != confirm_password:
+            print("Passwords do not match.")
+            messagebox.showerror("Error", "Passwords do not match.")  # error message popup
+        else:
+            user_id = self.controller.backend.create_user(username, email, password)  # creating the user with the backend function we made
 
 class sports_frame(ttk.Frame):
     def __init__(self, parent, controller):
