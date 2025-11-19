@@ -9,7 +9,7 @@ CREATE TABLE users (
     user_id INT AUTO_INCREMENT PRIMARY KEY,  -- auto assigning an identifier to each user made, increments by one each time
     username VARCHAR(100) NOT NULL UNIQUE,  -- cannot be empty, and cannot be repeated with other users
     email VARCHAR(100) NOT NULL UNIQUE,
-    password_hash VARCHAR(255) NOT NULL,  -- storing the encrypted password
+    password_hash VARCHAR(255) NOT NULL  -- storing the encrypted password
 );
 
 -- sports events (matches/things to bet on, each row is a new match etc)
