@@ -1,11 +1,11 @@
-# main.py
 import tkinter as tk
 from tkinter import ttk
 
 # main application class
 class app(tk.Tk):  # extending upon the tk.Tk class, this one defines the main GUI window
-    def __init__(self):  # this class automatically runs everytime, it initialises the object
+    def __init__(self, backend):  # this class automatically runs everytime, it initialises the object
         super().__init__()  # we run the parent class initialisation too (so inherit all methods from tk.Tk)
+        self.backend = backend  # storing the backend so frames can use it
         self.title("Cheeky Thou on Green")  # setting text in the window title bar (.title is a method from tk.Tk)
         self.geometry("800x600")  # setting window size
         # frame is like <div> in HTML for organising layout
@@ -19,6 +19,8 @@ class app(tk.Tk):  # extending upon the tk.Tk class, this one defines the main G
             frame.grid(row=0, column=0, sticky="nsew")  # putting the frame inside the container at row0,col0 whenever we show it (aka just on the screen)
         container.grid_rowconfigure(0, weight=1)  # making the container stretch to the full window size
         container.grid_columnconfigure(0, weight=1)
+
+        self.current_user = None  # to store the logged-in user later
 
         # structurally, we have the container inside the app window, and then all the frames are stored inside the container, but only one is visible at a time
         self.show_frame("home_frame")  # when the app starts, we show the homeframe (duh)
