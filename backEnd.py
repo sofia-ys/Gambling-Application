@@ -15,7 +15,7 @@ def get_connection():
 # creating a user in the database
 def create_user(username, email, plain_password):
     conn = get_connection()  # opens the db connection
-    cursor = conn.cursor()  # cursor object lets us execute sql commands
+    cursor = conn.cursor(dictionary=True)  # cursor object lets us execute sql commands
 
     password_hash = bcrypt.hashpw(
         plain_password.encode("utf-8"),  # string entered password into bytes
@@ -28,11 +28,13 @@ def create_user(username, email, plain_password):
     conn.commit()
 
     user_id = cursor.lastrowid  # so we know the id of the user to then reference later
+    cursor.execute("SELECT * FROM users WHERE user_id = %s", (user_id,))
+    user = cursor.fetchone()
 
-    print(f"User created with ID: {user_id}")
+    print(f"User created with ID: {user['user_id']}")
     cursor.close()
     conn.close()
-    return user_id
+    return user
 
 # finding a user via their username
 def get_user(username):
@@ -43,7 +45,10 @@ def get_user(username):
     cursor.execute(sql, (username,))  # the comma after username is because we need to send it as a tuple
     user = cursor.fetchone()  # retrieves the first row from the results of the query (finding the user by username), the result here is a dictionary with all the row values for the user
 
-    print(f"User found with ID: {user["user_id"]}")
+    if not user:  # if we don't find the user </3
+        return None
+
+    print(f"User found with ID: {user['user_id']}")
     cursor.close()
     conn.close()
     return user
@@ -57,12 +62,11 @@ def verify_login(username, plain_password):
 
     stored_password_hash = user["password_hash"].encode("utf-8")  # getting their password
     if bcrypt.checkpw(plain_password.encode("utf-8"), stored_password_hash):  # if the password they entered when encrypted matches the encrypted one stored
-        print(f"User logged in with ID: {user["user_id"]}")
+        print(f"User logged in with ID: {user['user_id']}")
         return user
     else:
         print(f"User password did not match")
         return None
-
 
 # updating a user's username, email, or password
 def update_user(user_id, username=None, email=None, plain_password=None):
