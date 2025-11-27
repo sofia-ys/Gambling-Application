@@ -66,17 +66,18 @@ class home_frame(CTkFrame):  # inheriting from the tk class Frame
         super().__init__(parent)  # taking all the functionalities we defined for the container it'll be stored in (so in this case it'll always be the container defined in app)
 
         # ad banners
-        ads_left = CTkFrame(self, corner_radius=0)
-        ads_left.pack(side="left", fill="y") 
+        self.ads_left = CTkFrame(self, corner_radius=0)
+        self.ads_left.pack(side="left", fill="y") 
 
-        ads_right = CTkFrame(self, corner_radius=0)
-        ads_right.pack(side="right", fill="y") 
+        self.ads_right = CTkFrame(self, corner_radius=0)
+        self.ads_right.pack(side="right", fill="y") 
 
         # live sports section
-        live = CTkFrame(self, corner_radius=0, fg_color="transparent")
-        live.pack(side="top", fill="x")  # a frame placed at the top, filling the full x-axis span    
+        self.live = CTkFrame(self, corner_radius=0, fg_color="transparent")
+        self.live.pack(side="top", fill="x")  # a frame placed at the top, filling the full x-axis span    
 
-        CTkLabel(live, text="Live", font=("Open Sans", 20), text_color="white").pack(side="left", pady=20, padx=20)
+        CTkLabel(self.live, text="Live", font=("Open Sans", 20), text_color="white").pack(side="left", pady=20, padx=20)
+
 
         
 class login_frame(CTkFrame):
@@ -125,6 +126,7 @@ class login_frame(CTkFrame):
             self.login_username_entry.delete(0, END)  # clearing fields
             self.login_password_entry.delete(0, END)
             self.controller.refresh_header()
+            self.controller.frames["wallet_frame"].balance_refresh()
             self.controller.show_frame("home_frame")
 
 
@@ -189,22 +191,39 @@ class register_frame(CTkFrame):
             user = self.controller.backend.create_user(username, email, password)  # creating the user with the backend function we made
             self.controller.current_user = user
             self.controller.refresh_header()
+            self.controller.frames["wallet_frame"].balance_refresh()
             self.controller.show_frame("home_frame")
 
 
 class wallet_frame(CTkFrame):
     def __init__(self, parent, controller):
         super().__init__(parent)
-        CTkLabel(self, text="Wallet").pack(pady=10)
-        # need to decide what we want on the page
-        CTkLabel(self, text="Balance").pack()
+        self.controller = controller
 
-        # CTkButton(self, text="Withdraw",
-        #            # something
-        #            )
-        # CTkButton(self, text="Deposit",
-        #            # something
-        # )
+        CTkLabel(self, text="Wallet", font=("Open Sans", 20, "bold")).pack(pady=10)
+        # need to decide what we want on the page
+
+        self.balanceFrame = CTkFrame(self)
+        self.balanceFrame.pack(padx=50, pady=50, ipadx=100, ipady=50, fill="x") 
+        CTkLabel(self.balanceFrame, text="Balance", font=("Open Sans", 16, "bold")).pack()
+        self.balanceTxt = CTkLabel(self.balanceFrame, text="$0.00", font=("Open Sans", 20, "bold"))  # initialised with a $0.00 (although this is never seen if not logged in)
+        self.balance_refresh()
+        self.balanceTxt.pack()
+
+        CTkButton(self, text="Withdraw", fg_color="#ff7a00", hover_color="#cc6100", text_color="white", font=("Open Sans", 12, "bold"), 
+                   # something
+                   ).pack(side="left", pady=20, padx=(240, 10))
+        CTkButton(self, text="Deposit", fg_color="#ff7a00", hover_color="#cc6100", text_color="white", font=("Open Sans", 12, "bold"), 
+                   # something
+        ).pack(side="right", pady=20, padx=(10, 240))
+    
+    def balance_refresh(self):
+        if self.controller.current_user:
+            self.balance = self.controller.current_user["balance"]
+        else:
+            self.balance = 0
+        self.balanceTxt.configure(text=f"${self.balance:.2f}")
+    
 
 # running the program
 if __name__ == "__main__":
