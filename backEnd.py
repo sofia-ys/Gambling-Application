@@ -8,6 +8,7 @@ def get_connection():
         host="localhost",
         user="root",
         password="Passw0rd!",  # this will have to be adjusted to each user's thing?? 
+        # TODO: MAKE SQL NOT JUST LOCAL ON MY LAPTOP
         database="app"
     )
     return conn
