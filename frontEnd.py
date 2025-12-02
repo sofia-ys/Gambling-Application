@@ -72,7 +72,8 @@ class home_frame(CTkFrame):  # inheriting from the tk class Frame
         self.ads_right = CTkFrame(self, corner_radius=0)
         self.ads_right.pack(side="right", fill="y") 
 
-        # live sports section
+        # live sports section 
+        # the live events won't actually update, we'll just choose a date for the app to be kinda of "stuck in time" on
         self.live = CTkFrame(self, corner_radius=0, fg_color="transparent")
         self.live.pack(side="top", fill="x")  # a frame placed at the top, filling the full x-axis span    
 
@@ -223,6 +224,18 @@ class wallet_frame(CTkFrame):
         else:
             self.balance = 0
         self.balanceTxt.configure(text=f"${self.balance:.2f}")
+
+# these are the little previews we see of each sports event, an instant of this class will be created for each sports event we want displayed on the home screen
+class sports_frame(CTkFrame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        self.controller = controller
+
+# this is the screen that will appear whenever you click into a sports event to actually bet on it 
+class betting_frame(CTkFrame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        self.controller = controller
     
 
 # running the program
