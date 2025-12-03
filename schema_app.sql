@@ -10,7 +10,7 @@ CREATE TABLE users (
     username VARCHAR(100) NOT NULL UNIQUE,  -- cannot be empty, and cannot be repeated with other users
     email VARCHAR(100) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,  -- storing the encrypted password
-    balance INT DEFAULT 0  -- assigning a balance for each user
+    balance DECIMAL(9,2) NOT NULL DEFAULT 0.00  -- assigning a balance for each user
 );
 
 -- sports events (matches/things to bet on, each row is a new match etc)

@@ -194,3 +194,80 @@ def place_bet(user_id, event_id, outcome, amount, odds):
         cursor.close()
         conn.close()
 
+def get_balance(user_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    sql = "SELECT balance FROM users WHERE user_id = %s"
+    cursor.execute(sql, (user_id,))
+    row = cursor.fetchone()
+
+    cursor.close()
+    conn.close()
+
+    if row is None:  # if the user_id doesn't exist 
+        return None 
+    return float(row[0])  # gives us the balance as a number
+
+
+def deposit(user_id, amount):
+
+    if amount <= 0:
+        print("Deposit amount must be positive.")
+        return None
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    sql_wallet = """
+            INSERT INTO wallet_transactions (user_id, amount, tx_type) 
+            VALUES (%s, %s, "DEPOSIT")
+        """
+    sql_users = """
+            UPDATE users SET balance = balance + %s WHERE user_id = %s
+        """
+    
+    cursor.execute(sql_wallet, (user_id, amount))  # adding the transaction so we can keep track of it
+    cursor.execute(sql_users, (amount, user_id))
+    conn.commit()
+
+    new_balance = get_balance(user_id)
+
+    cursor.close()
+    conn.close()
+
+    print(f"${amount} deposited to user {user_id}. New balance is ${new_balance}")
+    return new_balance
+
+def withdraw(user_id, amount):
+
+    if amount <= 0: 
+        print("Withdraw amount must be positive.")
+        return None
+    
+    if get_balance(user_id) < amount:  # not enough money
+        print("Insufficient balance.")
+        return None
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    sql_wallet = """
+            INSERT INTO wallet_transactions (user_id, amount, tx_type) 
+            VALUES (%s, %s, "WITHDRAW")
+        """
+    sql_users = """
+            UPDATE users SET balance = balance - %s WHERE user_id = %s
+        """
+    
+    cursor.execute(sql_wallet, (user_id, amount))  # adding the transaction so we can keep track of it
+    cursor.execute(sql_users, (amount, user_id))
+    conn.commit()
+
+    new_balance = get_balance(user_id)
+
+    cursor.close()
+    conn.close()
+
+    print(f"${amount} withdrawn from user {user_id}. New balance is ${new_balance}")
+    return new_balance

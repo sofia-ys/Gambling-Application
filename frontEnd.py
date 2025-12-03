@@ -46,7 +46,13 @@ class app(CTk):  # extending upon the tk.Tk class, this one defines the main GUI
         self.show_frame("home_frame")  # when the app starts, we show the homeframe (duh)
 
     def show_frame(self, name):  # defining the show_frame function (so we can switch between frames)
-        frame = self.frames[name]  # we find the active frame in the dictionary with its name as the key
+        frame = self.frames[name]  # we find the active frame in the dictionary with its name as the ke
+        if name == "wallet_frame":
+            frame.balance_refresh()  # making sure wallet balance is always good
+    
+        if hasattr(frame, "on_show"):  # if we have stuff to clear, we clear it (;
+            frame.on_show()
+
         frame.tkraise()  # this is a tk builtin function that brings the frame to the front (so its displayed/visible)
 
     def refresh_header(self):
@@ -59,7 +65,6 @@ class app(CTk):  # extending upon the tk.Tk class, this one defines the main GUI
         else:
             self.walletBtn.pack(side="right", pady=5, padx=10)
             self.homeBtn.pack(side="right", pady=5, padx=10)
-
 
 # individual screens (frames) classes
 class home_frame(CTkFrame):  # inheriting from the tk class Frame
@@ -77,10 +82,6 @@ class home_frame(CTkFrame):  # inheriting from the tk class Frame
 
         # live sports section 
         # the live events won't actually update, we'll just choose a date for the app to be kinda of "stuck in time" on
-        self.live = CTkFrame(self, corner_radius=0, fg_color="transparent")
-        self.live.pack(side="top", fill="x")  # a frame placed at the top, filling the full x-axis span    
-
-        CTkLabel(self.live, text="Live", font=("Open Sans", 20), text_color="white").pack(side="left", pady=20, padx=20)
 
         self.events_scroll = CTkScrollableFrame(self, fg_color="transparent")
         self.events_scroll.pack(fill="both", expand=True, padx=20, pady=20)
@@ -185,6 +186,10 @@ class login_frame(CTkFrame):
             self.controller.frames["wallet_frame"].balance_refresh()
             self.controller.show_frame("home_frame")
 
+    def on_show(self):  # for clearing all our fields etc
+        self.error_message.configure(text="")
+        self.login_username_entry.delete(0, END)
+        self.login_password_entry.delete(0, END)
 
 
 class register_frame(CTkFrame):
@@ -249,6 +254,9 @@ class register_frame(CTkFrame):
             self.controller.refresh_header()
             self.controller.frames["wallet_frame"].balance_refresh()
             self.controller.show_frame("home_frame")
+    
+    def on_show(self):  # clearing it out
+        self.reset_form()
 
 
 class wallet_frame(CTkFrame):
@@ -256,7 +264,7 @@ class wallet_frame(CTkFrame):
         super().__init__(parent)
         self.controller = controller
 
-        CTkLabel(self, text="Wallet", font=("Open Sans", 20, "bold")).pack(pady=10)
+        CTkLabel(self, text="Wallet", font=("Open Sans", 20, "bold"), text_color="#ff7a00").pack(pady=10)
         # need to decide what we want on the page
 
         self.balanceFrame = CTkFrame(self)
@@ -266,12 +274,20 @@ class wallet_frame(CTkFrame):
         self.balance_refresh()
         self.balanceTxt.pack()
 
+        CTkLabel(self, text="Amount").pack()
+        self.tx_amount = CTkEntry(self)  
+        self.tx_amount.pack()  
+
+        self.error_message = CTkLabel(self, text="")  # space for error message we can adjust
+        self.error_message.pack()
+
         CTkButton(self, text="Withdraw", fg_color="#ff7a00", hover_color="#cc6100", text_color="white", font=("Open Sans", 12, "bold"), 
-                   # something
+                   command=self.withdraw_click
                    ).pack(side="left", pady=20, padx=(240, 10))
         CTkButton(self, text="Deposit", fg_color="#ff7a00", hover_color="#cc6100", text_color="white", font=("Open Sans", 12, "bold"), 
-                   # something
+                   command=self.deposit_click
         ).pack(side="right", pady=20, padx=(10, 240))
+
     
     def balance_refresh(self):
         if self.controller.current_user:
@@ -279,6 +295,51 @@ class wallet_frame(CTkFrame):
         else:
             self.balance = 0
         self.balanceTxt.configure(text=f"${self.balance:.2f}")
+
+    def deposit_click(self):
+        if not self.controller.current_user:  # if no one is logged in
+            return
+        user_id = self.controller.current_user["user_id"]
+        amount = float(self.tx_amount.get().strip())
+
+        if amount <= 0:
+            self.error_message.configure(text="Amount must be greater than 0.")
+            print("Amount must be greater than 0.")
+            return
+        
+        new_balance = backEnd.deposit(user_id, amount)
+        self.controller.current_user["balance"] = new_balance  # updating the controller
+        self.tx_amount.delete(0, END)  # clearing the input field
+        self.error_message.configure(text=f"Deposited ${amount:.2f} ")  # confirmation message
+        self.balance_refresh()  # making sure the value updates
+
+    def withdraw_click(self):
+        if not self.controller.current_user:  # if no one is logged in
+            return
+        user_id = self.controller.current_user["user_id"]
+        
+        amount = float(self.tx_amount.get().strip())
+
+        if amount <= 0:
+            self.error_message.configure(text="Amount must be greater than 0.")
+            print("Amount must be greater than 0.")
+            return
+        
+        if amount > float(self.controller.current_user["balance"]):
+            self.error_message.configure(text="Insufficient balance.")
+            print("Insufficient balance.")
+            return
+
+        new_balance = backEnd.withdraw(user_id, amount)
+        self.controller.current_user["balance"] = new_balance
+        self.tx_amount.delete(0, END)
+        self.error_message.configure(text=f"Withdrew ${amount:.2f} ")
+        self.balance_refresh()
+
+    def on_show(self):
+        self.error_message.configure(text="")
+        self.tx_amount.delete(0, END)
+        self.balance_refresh()
 
 # these are the little previews we see of each sports event, an instant of this class will be created for each sports event we want displayed on the home screen
 class sports_frame(CTkFrame):
@@ -322,7 +383,7 @@ class sports_frame(CTkFrame):
                 controller.frames["betting_frame"].set_event(event_data)
                 controller.show_frame("betting_frame")
     
-            CTkButton(self, text="Place Bet", fg_color="#ff7a00", hover_color="#cc6100",
+            CTkButton(self, text="Place Bet", fg_color="#ff7a00", hover_color="#cc6100", text_color="white", 
               command=lambda e=self.event: on_bet_click(e)).pack(pady=10, padx=15)
 
         else:
@@ -330,7 +391,6 @@ class sports_frame(CTkFrame):
             status_label = CTkLabel(self, text=f"{status} - No bets available", 
                                   font=("Open Sans", 12), text_color="gray")
             status_label.pack(pady=10)
-
 
 # this is the screen that will appear whenever you click into a sports event to actually bet on it 
 class betting_frame(CTkFrame):
@@ -415,7 +475,7 @@ class betting_frame(CTkFrame):
         buttons_frame = CTkFrame(self, fg_color="transparent")
         buttons_frame.pack(fill="x", padx=40, pady=30)
         
-        self.place_bet_btn = CTkButton(buttons_frame, text="Place Bet", 
+        self.place_bet_btn = CTkButton(buttons_frame, text="Place Bet", text_color="white",
                                      fg_color="#ff7a00", hover_color="#cc6100",
                                      font=("Open Sans", 16, "bold"), height=40,
                                      command=self.place_bet)
