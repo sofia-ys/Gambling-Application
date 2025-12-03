@@ -1,5 +1,7 @@
 import mysql.connector  
 import bcrypt  # for encrypting passwords
+from datetime import datetime
+
 
 # user CRUD management
 # making the connection to the mysql db
@@ -8,7 +10,6 @@ def get_connection():
         host="localhost",
         user="root",
         password="Passw0rd!",  # this will have to be adjusted to each user's thing?? 
-        # TODO: MAKE SQL NOT JUST LOCAL ON MY LAPTOP
         database="app"
     )
     return conn
@@ -111,3 +112,85 @@ def delete_user(user_id):
 # transactions management
 
 # sports events management
+def get_sports_events():
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    sql = "SELECT * FROM sports_events ORDER BY event_date"  # Adjust table/columns as needed
+    cursor.execute(sql)
+    events = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return events  # Returns list of dicts like [{'event_id':1, 'team1':'Real Madrid', 'team2':'Barcelona', 'odds':1.8, ...}]
+
+def update_event_status_by_cutoff(cutoff_live_start, cutoff_live_end): #Update bet_status using frontend cutoff values
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    # Convert Python datetime to MySQL format for comparison
+    cutoff_start_str = cutoff_live_start.strftime('%Y-%m-%d %H:%M:%S')
+    cutoff_end_str = cutoff_live_end.strftime('%Y-%m-%d %H:%M:%S')
+    
+    # Update past events to CLOSED
+    cursor.execute("UPDATE sports_events SET bet_status = 'CLOSED' WHERE event_date < %s AND bet_status = 'OPEN'", (cutoff_start_str,))
+    
+    updated = cursor.rowcount
+    conn.commit()
+    cursor.close()
+    conn.close()
+    
+def place_bet(user_id, event_id, outcome, amount, odds):
+    """Place a bet: create wallet transaction, bet record, deduct balance"""
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    try:
+        # Verify user balance (balance is INT in your schema)
+        cursor.execute("SELECT balance FROM users WHERE user_id = %s FOR UPDATE", (user_id,))
+        user = cursor.fetchone()
+        if not user or user['balance'] < amount:
+            print("Insufficient balance")
+            return None
+        
+        # Verify event is OPEN
+        cursor.execute("SELECT bet_status FROM sports_events WHERE event_id = %s", (event_id,))
+        event = cursor.fetchone()
+        if not event or event['bet_status'] != 'OPEN':
+            print("Event not available for betting")
+            return None
+        
+        # Convert frontend outcomes to backend format
+        outcome_map = {"HOME_WIN": "TEAM1", "AWAY_WIN": "TEAM2", "DRAW": "DRAW"}
+        db_outcome = outcome_map.get(outcome, outcome)
+        
+        # Begin transaction
+        cursor.execute("START TRANSACTION")
+        
+        # 1. Create BET transaction (negative amount)
+        cursor.execute("""
+            INSERT INTO wallet_transactions (user_id, amount, tx_type) 
+            VALUES (%s, %s, 'BET')
+        """, (user_id, -float(amount)))
+        
+        # 2. Deduct from balance
+        cursor.execute("UPDATE users SET balance = balance - %s WHERE user_id = %s", (amount, user_id))
+        
+        # 3. Insert bet
+        sql = """
+            INSERT INTO bets (user_id, event_id, amount, selected_option, odds) 
+            VALUES (%s, %s, %s, %s, %s)
+        """
+        cursor.execute(sql, (user_id, event_id, amount, db_outcome, odds))
+        bet_id = cursor.lastrowid
+        
+        conn.commit()
+        print(f"Bet placed: ID {bet_id}, ${amount} on {db_outcome} (odds: {odds})")
+        return {'bet_id': bet_id, 'status': 'PENDING'}
+    
+    except Exception as e:
+        conn.rollback()
+        print(f"Bet failed: {e}")
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+

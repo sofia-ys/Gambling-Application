@@ -1,5 +1,6 @@
 from customtkinter import *  # using this because the UI is just infinitely better like it doesn't
 import backEnd as backEnd
+from datetime import datetime
 
 # main application class
 class app(CTk):  # extending upon the tk.Tk class, this one defines the main GUI window
@@ -34,7 +35,7 @@ class app(CTk):  # extending upon the tk.Tk class, this one defines the main GUI
         container.pack(fill="both", expand=True)  # any widgets added to our frame will be stacked vertically
 
         self.frames = {}  # creating a dictionary to store each screen's frames
-        for f in (home_frame, login_frame, register_frame, wallet_frame):  # with eaach iteration, f is one of the frame classes (defined later)
+        for f in (home_frame, login_frame, register_frame, wallet_frame, betting_frame):  # with eaach iteration, f is one of the frame classes (defined later)
             frame = f(container, self)  # creating an instance of the class
             self.frames[f.__name__] = frame  # storing the frame in the dictionary
             frame.grid(row=0, column=0, sticky="nsew")  # putting the frame inside the container at row0,col0 whenever we show it (aka just on the screen)
@@ -65,6 +66,8 @@ class home_frame(CTkFrame):  # inheriting from the tk class Frame
     def __init__(self, parent, controller):  # parent is the container in which the frame is "stored in" and controller is the main app (so buttons clicked on the app then trigger show_frame() etc)
         super().__init__(parent)  # taking all the functionalities we defined for the container it'll be stored in (so in this case it'll always be the container defined in app)
 
+        self.controller = controller
+        
         # ad banners
         self.ads_left = CTkFrame(self, corner_radius=0)
         self.ads_left.pack(side="left", fill="y") 
@@ -79,7 +82,59 @@ class home_frame(CTkFrame):  # inheriting from the tk class Frame
 
         CTkLabel(self.live, text="Live", font=("Open Sans", 20), text_color="white").pack(side="left", pady=20, padx=20)
 
+        self.events_scroll = CTkScrollableFrame(self, fg_color="transparent")
+        self.events_scroll.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        self.refresh_events()
+        
+    def refresh_events(self):
+        # Clear existing event frames
+        for widget in self.events_scroll.winfo_children():
+            widget.destroy()
+        
+        # Define cutoff datetime for live category
+        cutoff_live_start = datetime(2025, 1, 1, 0, 0, 1)  # Feb 3rd 1:00 AM
+        cutoff_live_end = datetime(2025, 2, 3, 2, 59, 59)  # Feb 3rd 2:59 AM
 
+        #self.controller.backend.update_event_status_by_cutoff(cutoff_live_start, cutoff_live_end)
+        
+        # Fetch events from backend
+        events = self.controller.backend.get_sports_events()
+        
+        open_events = []
+        closed_events = []
+        settled_events = []
+
+        for event in events:
+            
+            event_date_str = str(event['event_date'])
+            
+            event_dt = datetime.strptime(event_date_str, "%Y-%m-%d %H:%M:%S")
+                
+            if cutoff_live_start <= event_dt <= cutoff_live_end:
+                event['temp_status'] = 'LIVE'
+                open_events.append(event)
+            elif event_dt > cutoff_live_end:
+                event['temp_status'] = 'OPEN'
+                open_events.append(event)
+            else:
+                event['temp_status'] = 'CLOSED'
+                closed_events.append(event)
+
+        settled_events = [e for e in events if e.get('bet_status') == 'SETTLED']
+        
+        def populate_section(title, event_list):
+            section_frame = CTkFrame(self.events_scroll, fg_color="transparent")
+            CTkLabel(section_frame, text=title, font=("Open Sans", 18, "bold"), text_color="#ff7a00").pack(anchor="w", padx=10, pady=10)
+            section_frame.pack(fill="x", pady=10)
+
+            for event in event_list:
+                sports_preview = sports_frame(section_frame, self.controller, event)
+                sports_preview.pack(fill="x", pady=5)
+
+        populate_section("Live Events", open_events)
+        populate_section("Upcoming Events", closed_events)
+        populate_section("Past Events", settled_events)
         
 class login_frame(CTkFrame):
     def __init__(self, parent, controller):
@@ -227,15 +282,249 @@ class wallet_frame(CTkFrame):
 
 # these are the little previews we see of each sports event, an instant of this class will be created for each sports event we want displayed on the home screen
 class sports_frame(CTkFrame):
-    def __init__(self, parent, controller):
-        super().__init__(parent)
+    def __init__(self, parent, controller, event_data):
+        super().__init__(parent, fg_color="#2b2b2b", corner_radius=10)  # Dark card style
         self.controller = controller
+        self.event = event_data
+        
+        # Event title (Team1 vs Team2)
+        CTkLabel(self, text=f"{self.event.get('team1', 'Team A')} vs {self.event.get('team2', 'Team B')}", 
+                font=("Open Sans", 16, "bold"), text_color="white").pack(pady=10, padx=15)
+        
+        # Sport type and status
+        status_frame = CTkFrame(self, fg_color="transparent")
+        status_frame.pack(fill="x", padx=15)
+        CTkLabel(status_frame, text=self.event.get('sport_type', 'Unknown'), 
+                font=("Open Sans", 12), text_color="#ff7a00").pack(side="left")
+        
+        # Show status badge
+        status = self.event.get('bet_status', 'OPEN')
+        status_color = {"OPEN": "green", "CLOSED": "red", "SETTLED": "orange"}
+        CTkLabel(status_frame, text=status, font=("Open Sans", 10, "bold"), 
+                text_color=status_color.get(status, "white"), 
+                fg_color="transparent").pack(side="right")
+        
+        # Details row (date)
+        details_frame = CTkFrame(self, fg_color="transparent")
+        details_frame.pack(fill="x", padx=15, pady=(0, 10))
+        CTkLabel(details_frame, text=str(self.event.get('event_date', 'No date')), 
+                font=("Open Sans", 10), text_color="gray").pack()
+        
+        # CONDITIONAL BET BUTTON - Only show for OPEN events AND logged in users
+        if status == "OPEN":
+            def on_bet_click(event_data):
+                if not controller.current_user:
+            # Store pending event and redirect to login
+                    controller.frames["betting_frame"].pending_event = event_data
+                    controller.show_frame("login_frame")
+                    return
+        # User is logged in, proceed to betting
+                controller.frames["betting_frame"].set_event(event_data)
+                controller.show_frame("betting_frame")
+    
+            CTkButton(self, text="Place Bet", fg_color="#ff7a00", hover_color="#cc6100",
+              command=lambda e=self.event: on_bet_click(e)).pack(pady=10, padx=15)
+
+        else:
+            # Show status message for closed/settled events
+            status_label = CTkLabel(self, text=f"{status} - No bets available", 
+                                  font=("Open Sans", 12), text_color="gray")
+            status_label.pack(pady=10)
+
 
 # this is the screen that will appear whenever you click into a sports event to actually bet on it 
 class betting_frame(CTkFrame):
     def __init__(self, parent, controller):
         super().__init__(parent)
         self.controller = controller
+        
+        self.current_event = None  # Will store the event data when accessed from sports_frame
+        
+        self.build_ui()
+    
+    def build_ui(self):
+        # Title
+        CTkLabel(self, text="Place Your Bet", font=("Open Sans", 24, "bold")).pack(pady=20)
+        
+        # Event details card
+        self.event_card = CTkFrame(self, fg_color="#2b2b2b", corner_radius=15)
+        self.event_card.pack(fill="x", padx=40, pady=10)
+        
+        self.event_title = CTkLabel(self.event_card, text="Select an event", 
+                                   font=("Open Sans", 18, "bold"), text_color="white")
+        self.event_title.pack(pady=20)
+        
+        self.event_details = CTkLabel(self.event_card, text="", 
+                                    font=("Open Sans", 12), text_color="gray")
+        self.event_details.pack(pady=(0, 20))
+        
+        # Bet selection section
+        bet_section = CTkFrame(self, fg_color="transparent")
+        bet_section.pack(fill="x", padx=40, pady=10)
+        
+        CTkLabel(bet_section, text="Select Outcome", 
+                font=("Open Sans", 16, "bold")).pack(anchor="w", pady=(20, 10))
+        
+        # Radio buttons for win/draw/loss (import tkinter at top of file)
+        self.outcome_var = StringVar(value="HOME_WIN")
+        self.home_radio = CTkRadioButton(bet_section, text="Home Win", 
+                                       variable=self.outcome_var, value="HOME_WIN",
+                                       font=("Open Sans", 14), radiobutton_width=30,
+                                       command=self.update_potential_winnings)
+        self.home_radio.pack(anchor="w", pady=5)
+        
+        self.draw_radio = CTkRadioButton(bet_section, text="Draw", 
+                                       variable=self.outcome_var, value="DRAW",
+                                       font=("Open Sans", 14), radiobutton_width=30,
+                                       command=self.update_potential_winnings)
+        self.draw_radio.pack(anchor="w", pady=5)
+        
+        self.away_radio = CTkRadioButton(bet_section, text="Away Win", 
+                                       variable=self.outcome_var, value="AWAY_WIN",
+                                       font=("Open Sans", 14), radiobutton_width=30,
+                                       command=self.update_potential_winnings)
+        self.away_radio.pack(anchor="w", pady=5)
+        
+        # Amount input
+        amount_frame = CTkFrame(self, fg_color="transparent")
+        amount_frame.pack(fill="x", padx=40, pady=20)
+        
+        CTkLabel(amount_frame, text="Bet Amount ($)", font=("Open Sans", 16, "bold")).pack(anchor="w")
+        self.amount_entry = CTkEntry(amount_frame, placeholder_text="Enter amount", 
+                                   font=("Open Sans", 14), width=200)
+        self.amount_entry.pack(pady=5)
+        self.amount_entry.bind("<KeyRelease>", self.on_amount_change)
+        
+        # Balance warning
+        self.balance_warning = CTkLabel(amount_frame, text="", text_color="orange")
+        self.balance_warning.pack(anchor="w", pady=2)
+        
+        # Odds and potential winnings
+        self.odds_frame = CTkFrame(self, fg_color="#2b2b2b", corner_radius=10)
+        self.odds_frame.pack(fill="x", padx=40, pady=10)
+        
+        self.odds_label = CTkLabel(self.odds_frame, text="Odds: -", 
+                                 font=("Open Sans", 14, "bold"))
+        self.odds_label.pack(pady=10)
+        
+        self.winnings_label = CTkLabel(self.odds_frame, text="Potential Winnings: $0.00", 
+                                     font=("Open Sans", 16, "bold"), text_color="#ff7a00")
+        self.winnings_label.pack(pady=10)
+        
+        # Action buttons
+        buttons_frame = CTkFrame(self, fg_color="transparent")
+        buttons_frame.pack(fill="x", padx=40, pady=30)
+        
+        self.place_bet_btn = CTkButton(buttons_frame, text="Place Bet", 
+                                     fg_color="#ff7a00", hover_color="#cc6100",
+                                     font=("Open Sans", 16, "bold"), height=40,
+                                     command=self.place_bet)
+        self.place_bet_btn.pack(side="right", padx=10)
+        
+        CTkButton(buttons_frame, text="Back", fg_color="gray", 
+                 hover_color="#666", font=("Open Sans", 14), height=40,
+                 command=lambda: self.controller.show_frame("home_frame")).pack(side="right")
+    
+    def set_event(self, event_data):
+        """Called from sports_frame when Place Bet is clicked"""
+        self.current_event = event_data
+        self.event_title.configure(text=f"{event_data.get('team1', 'Team A')} vs {event_data.get('team2', 'Team B')}")
+        self.event_details.configure(text=f"{event_data.get('sport_type', 'Sport')} • {event_data.get('event_date', 'Date')}")
+        self.update_potential_winnings()
+    
+    def on_amount_change(self, event=None):
+        amount_text = self.amount_entry.get().strip()
+        if amount_text and not amount_text.replace('.', '').isdigit():
+            self.amount_entry.delete(0, "end")
+            return
+        self.update_potential_winnings()
+    
+    def update_potential_winnings(self):
+        if not self.current_event or not self.controller.current_user:
+            self.winnings_label.configure(text="Potential Winnings: $0.00")
+            self.odds_label.configure(text="Odds: -")
+            self.balance_warning.configure(text="")
+            self.place_bet_btn.configure(state="disabled")
+            return
+        
+        try:
+            amount_text = self.amount_entry.get().strip()
+            amount = float(amount_text) if amount_text else 0
+            if amount <= 0:
+                self.winnings_label.configure(text="Potential Winnings: $0.00")
+                self.odds_label.configure(text="Odds: -")
+                self.balance_warning.configure(text="")
+                self.place_bet_btn.configure(state="disabled")
+                return
+            
+            # Get odds from your sports_events table (single odds column)
+            odds = self.current_event.get('odds', 2.0)
+            
+            # Calculate potential winnings
+            potential = amount * odds
+            
+            # Update UI labels
+            self.winnings_label.configure(text=f"Potential Winnings: ${potential:.2f}")
+            self.odds_label.configure(text=f"Odds: {self.outcome_var.get()} ({odds:.2f}x)")
+            
+            # Check user balance
+            balance = self.controller.current_user.get("balance", 0)
+            if amount > balance:
+                self.balance_warning.configure(text="Insufficient balance!", text_color="red")
+                self.place_bet_btn.configure(state="disabled")
+            else:
+                self.balance_warning.configure(text=f"Balance: ${balance:.2f}", text_color="green")
+                self.place_bet_btn.configure(state="normal")
+            
+            # Amount input validation (only numbers/decimals)
+            if amount_text and not amount_text.replace('.', '').replace('-', '').isdigit():
+                self.amount_entry.delete(0, "end")
+                self.amount_entry.insert(0, amount_text[:-1])  # Remove invalid char
+                
+        except Exception as e:
+            print(f"Update winnings error: {e}")
+            self.winnings_label.configure(text="Potential Winnings: $0.00")
+
+
+
+    
+    def place_bet(self):
+        if not self.current_event or not self.controller.current_user:
+            return
+    
+        try:
+            amount = float(self.amount_entry.get() or 0)
+            if amount <= 0:
+                return
+            
+            user_id = self.controller.current_user['user_id']
+            event_id = self.current_event['event_id']
+            outcome = self.outcome_var.get()
+            
+            # INSERT THIS LINE HERE - gets odds from your sports_events table
+            odds = self.current_event.get('odds', 2.0)
+            
+            # Map frontend to backend outcomes
+            outcome_map = {"HOME_WIN": "TEAM1", "AWAY_WIN": "TEAM2", "DRAW": "DRAW"}
+            db_outcome = outcome_map[outcome]
+            
+            # Call backend
+            result = self.controller.backend.place_bet(user_id, event_id, db_outcome, amount, odds)
+            if result:
+                print(f"Bet placed successfully: {result}")
+                self.controller.current_user = self.controller.backend.get_user(
+                    self.controller.current_user['username'])  # Refresh user balance
+                self.controller.refresh_header()
+                self.controller.frames["wallet_frame"].balance_refresh()
+                self.controller.show_frame("home_frame")
+            else:
+                print("Bet failed - check balance/event status")
+                
+        except ValueError:
+            print("Invalid amount")
+        except KeyError:
+            print("Invalid outcome selected")
+
     
 
 # running the program
