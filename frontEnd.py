@@ -8,9 +8,8 @@ class app(CTk):  # extending upon the tk.Tk class, this one defines the main GUI
         super().__init__()  # we run the parent class initialisation too (so inherit all methods from tk.Tk)
         self.backend = backend  # storing the backend so frames can use it
         self.title("BE-THE-ONE")  # setting text in the window title bar (.title is a method from tk.Tk)
-        self.geometry("800x600")  # setting window size
+        # self.geometry("800x600")  # setting window size
         set_appearance_mode("dark")  # always dark mode (:
-
 
         self.current_user = None  # to store the logged-in user later
 
