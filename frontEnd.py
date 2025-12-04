@@ -115,11 +115,13 @@ class home_frame(CTkFrame):  # inheriting from the tk class Frame
 
         frozen_now = backEnd.FROZEN_NOW  # using our frozen time
         
-        # Define cutoff datetime for live category
-        # cutoff_live_start = datetime(2025, 1, 1, 0, 0, 1)  # Feb 3rd 1:00 AM
-        # cutoff_live_end = datetime(2025, 2, 3, 2, 59, 59)  # Feb 3rd 2:59 AM
+        # Define 
+        #  datetime for live category
+        cutoff_live_start = backEnd.FROZEN_NOW.replace()  # copy
+        cutoff_live_start = cutoff_live_start.replace(hour=backEnd.FROZEN_NOW.hour-1)
+        cutoff_live_end   = backEnd.FROZEN_NOW.replace(hour=backEnd.FROZEN_NOW.hour+2)
 
-        self.controller.backend.update_event_status_by_cutoff()
+        self.controller.backend.update_event_status_by_cutoff(cutoff_live_start, cutoff_live_end)
         
         # Fetch events from backend
         events = self.controller.backend.get_sports_events()

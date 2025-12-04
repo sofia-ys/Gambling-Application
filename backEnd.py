@@ -124,18 +124,16 @@ def get_sports_events():
     conn.close()
     return events  # Returns list of dicts like [{'event_id':1, 'team1':'Real Madrid', 'team2':'Barcelona', 'odds':1.8, ...}]
 
-def update_event_status_by_cutoff(): #Update bet_status using frontend cutoff values
+def update_event_status_by_cutoff(cutoff_live_start, cutoff_live_end): #Update bet_status using frontend cutoff values
     conn = get_connection()
     cursor = conn.cursor()
     
     # Convert Python datetime to MySQL format for comparison
-    # cutoff_start_str = cutoff_live_start.strftime('%Y-%m-%d %H:%M:%S')
-    # cutoff_end_str = cutoff_live_end.strftime('%Y-%m-%d %H:%M:%S')
-
-    cutoff_str = FROZEN_NOW.strftime('%Y-%m-%d %H:%M:%S')  # this is the cutoff date that we chose
+    cutoff_start_str = cutoff_live_start.strftime('%Y-%m-%d %H:%M:%S')
+    cutoff_end_str = cutoff_live_end.strftime('%Y-%m-%d %H:%M:%S')
     
     # Update past events to CLOSED
-    cursor.execute("UPDATE sports_events SET bet_status = 'CLOSED' WHERE event_date < %s AND bet_status = 'OPEN'", (cutoff_str,))
+    cursor.execute("UPDATE sports_events SET bet_status = 'CLOSED' WHERE event_date < %s AND bet_status = 'OPEN'", (cutoff_start_str,))
     
     updated = cursor.rowcount
     conn.commit()
