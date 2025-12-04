@@ -271,3 +271,21 @@ def withdraw(user_id, amount):
 
     print(f"${amount} withdrawn from user {user_id}. New balance is ${new_balance}")
     return new_balance
+
+def get_wallet_transactions(user_id, limit=10):  # only show past 10 txs bc otherwise too much <3
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    sql = """
+        SELECT tx_id, amount, tx_type, created_at
+        FROM wallet_transactions
+        WHERE user_id = %s
+        ORDER BY created_at DESC
+        LIMIT %s
+    """
+    cursor.execute(sql, (user_id, limit))
+    rows = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+    return rows

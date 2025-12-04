@@ -24,8 +24,8 @@ class app(CTk):  # extending upon the tk.Tk class, this one defines the main GUI
         
         self.loginBtn = CTkButton(self.header, text="Login", fg_color="#ff7a00", hover_color="#cc6100", text_color="white", font=("Open Sans", 12, "bold"), # text is what the button shows
                                       command=lambda: self.show_frame("login_frame"))  # we use lambda to avoid the function being called immediately, this is only executed if clicked (it shows the frame)
-        self.walletBtn = CTkButton(self.header, text="Wallet", fg_color="#ff7a00", hover_color="#cc6100", text_color="white", font=("Open Sans", 12, "bold"),
-                                       command=lambda: self.show_frame("wallet_frame"))
+        self.accountBtn = CTkButton(self.header, text="Account", fg_color="#ff7a00", hover_color="#cc6100", text_color="white", font=("Open Sans", 12, "bold"),
+                                       command=lambda: self.show_frame("account_frame"))
         self.homeBtn = CTkButton(self.header, text="Home", fg_color="#ff7a00", hover_color="#cc6100", text_color="white", font=("Open Sans", 12, "bold"),
                                  command=lambda: self.show_frame("home_frame"))
         self.refresh_header()
@@ -35,7 +35,7 @@ class app(CTk):  # extending upon the tk.Tk class, this one defines the main GUI
         container.pack(fill="both", expand=True)  # any widgets added to our frame will be stacked vertically
 
         self.frames = {}  # creating a dictionary to store each screen's frames
-        for f in (home_frame, login_frame, register_frame, wallet_frame, betting_frame):  # with eaach iteration, f is one of the frame classes (defined later)
+        for f in (home_frame, login_frame, register_frame, account_frame, betting_frame):  # with eaach iteration, f is one of the frame classes (defined later)
             frame = f(container, self)  # creating an instance of the class
             self.frames[f.__name__] = frame  # storing the frame in the dictionary
             frame.grid(row=0, column=0, sticky="nsew")  # putting the frame inside the container at row0,col0 whenever we show it (aka just on the screen)
@@ -47,24 +47,36 @@ class app(CTk):  # extending upon the tk.Tk class, this one defines the main GUI
 
     def show_frame(self, name):  # defining the show_frame function (so we can switch between frames)
         frame = self.frames[name]  # we find the active frame in the dictionary with its name as the ke
-        if name == "wallet_frame":
+        if name == "account_frame":
             frame.balance_refresh()  # making sure wallet balance is always good
     
         if hasattr(frame, "on_show"):  # if we have stuff to clear, we clear it (;
             frame.on_show()
 
+        if self.current_user:  # if we're logged in 
+            if name == "account_frame":  # AND wer're on the account frame
+                self.accountBtn.configure(text="Log out", command=self.logout)  # we change the button to a logout
+            else:  # on any other page it's the account one
+                self.accountBtn.configure(text="Account", command=lambda: self.show_frame("account_frame"))
+
         frame.tkraise()  # this is a tk builtin function that brings the frame to the front (so its displayed/visible)
 
     def refresh_header(self):
-        self.walletBtn.pack_forget()  # forget all of these, we then reput them on as per login in the correct order
+        self.accountBtn.pack_forget()  # forget all of these, we then reput them on as per login in the correct order
         self.loginBtn.pack_forget()
         self.homeBtn.pack_forget()
         if not self.current_user:  # if we're not logged in we show the account button 
             self.loginBtn.pack(side="right", pady=5, padx=10)
             self.homeBtn.pack(side="right", pady=5, padx=10)  # the pack is just to actually place it on the screen (and has a vertical padding of 5)
         else:
-            self.walletBtn.pack(side="right", pady=5, padx=10)
+            self.accountBtn.pack(side="right", pady=5, padx=10)
             self.homeBtn.pack(side="right", pady=5, padx=10)
+
+    def logout(self):
+        self.current_user = None  # logging out user
+        self.refresh_header()
+        self.show_frame("login_frame")
+
 
 # individual screens (frames) classes
 class home_frame(CTkFrame):  # inheriting from the tk class Frame
@@ -143,7 +155,7 @@ class login_frame(CTkFrame):
 
         self.controller = controller
 
-        CTkLabel(self, text="Login", font=("Open Sans", 20, "bold")).pack(pady=10)
+        CTkLabel(self, text="Login", font=("Open Sans", 20, "bold"), text_color="#ff7a00").pack(pady=10)
         CTkLabel(self, text="Username").pack()
         self.login_username_entry = CTkEntry(self)  # .Entry is a method that stores the input so we can use it later
         self.login_username_entry.pack()  # making sure to pack it so that the element is displayed
@@ -183,7 +195,7 @@ class login_frame(CTkFrame):
             self.login_username_entry.delete(0, END)  # clearing fields
             self.login_password_entry.delete(0, END)
             self.controller.refresh_header()
-            self.controller.frames["wallet_frame"].balance_refresh()
+            self.controller.frames["account_frame"].balance_refresh()
             self.controller.show_frame("home_frame")
 
     def on_show(self):  # for clearing all our fields etc
@@ -198,7 +210,7 @@ class register_frame(CTkFrame):
 
         self.controller = controller  # making the controller (app) exist here
 
-        CTkLabel(self, text="Register", font=("Open Sans", 20, "bold")).pack(pady=10)
+        CTkLabel(self, text="Register", font=("Open Sans", 20, "bold"), text_color="#ff7a00").pack(pady=10)
 
         # still have to add name, surname, email, password, confirm password entries (wtv we want when registering user)
         CTkLabel(self, text="Email").pack()
@@ -252,41 +264,48 @@ class register_frame(CTkFrame):
             user = self.controller.backend.create_user(username, email, password)  # creating the user with the backend function we made
             self.controller.current_user = user
             self.controller.refresh_header()
-            self.controller.frames["wallet_frame"].balance_refresh()
+            self.controller.frames["account_frame"].balance_refresh()
             self.controller.show_frame("home_frame")
     
     def on_show(self):  # clearing it out
         self.reset_form()
 
 
-class wallet_frame(CTkFrame):
+class account_frame(CTkFrame):
     def __init__(self, parent, controller):
         super().__init__(parent)
         self.controller = controller
 
         CTkLabel(self, text="Wallet", font=("Open Sans", 20, "bold"), text_color="#ff7a00").pack(pady=10)
-        # need to decide what we want on the page
 
         self.balanceFrame = CTkFrame(self)
         self.balanceFrame.pack(padx=50, pady=50, ipadx=100, ipady=50, fill="x") 
-        CTkLabel(self.balanceFrame, text="Balance", font=("Open Sans", 16, "bold")).pack()
+        CTkLabel(self.balanceFrame, text="Balance", font=("Open Sans", 16, "bold")).pack(pady=(20, 10))
         self.balanceTxt = CTkLabel(self.balanceFrame, text="$0.00", font=("Open Sans", 20, "bold"))  # initialised with a $0.00 (although this is never seen if not logged in)
         self.balance_refresh()
         self.balanceTxt.pack()
 
-        CTkLabel(self, text="Amount").pack()
-        self.tx_amount = CTkEntry(self)  
+        CTkLabel(self.balanceFrame, text="Amount", font=("Open Sans", 16, "bold")).pack(pady=(40, 10))
+        self.tx_amount = CTkEntry(self.balanceFrame)  
         self.tx_amount.pack()  
 
-        self.error_message = CTkLabel(self, text="")  # space for error message we can adjust
+        self.error_message = CTkLabel(self.balanceFrame, text="")  # space for error message we can adjust
         self.error_message.pack()
 
-        CTkButton(self, text="Withdraw", fg_color="#ff7a00", hover_color="#cc6100", text_color="white", font=("Open Sans", 12, "bold"), 
+        CTkButton(self.balanceFrame, text="Withdraw", fg_color="#ff7a00", hover_color="#cc6100", text_color="white", font=("Open Sans", 12, "bold"), 
                    command=self.withdraw_click
-                   ).pack(side="left", pady=20, padx=(240, 10))
-        CTkButton(self, text="Deposit", fg_color="#ff7a00", hover_color="#cc6100", text_color="white", font=("Open Sans", 12, "bold"), 
+                   ).pack(side="left", pady=10, padx=(180, 10))
+        CTkButton(self.balanceFrame, text="Deposit", fg_color="#ff7a00", hover_color="#cc6100", text_color="white", font=("Open Sans", 12, "bold"), 
                    command=self.deposit_click
-        ).pack(side="right", pady=20, padx=(10, 240))
+        ).pack(side="right", pady=10, padx=(10, 180))
+
+        CTkLabel(self, text="Transaction History", font=("Open Sans", 20, "bold"), text_color="#ff7a00").pack(pady=10)
+
+        self.history_scroll = CTkScrollableFrame(self, fg_color="transparent")
+        self.history_scroll.pack(fill="both", expand=True, padx=40, pady=(0, 20))
+
+        self.refresh_history()
+
 
     
     def balance_refresh(self):
@@ -312,6 +331,7 @@ class wallet_frame(CTkFrame):
         self.tx_amount.delete(0, END)  # clearing the input field
         self.error_message.configure(text=f"Deposited ${amount:.2f} ")  # confirmation message
         self.balance_refresh()  # making sure the value updates
+        self.refresh_history()  
 
     def withdraw_click(self):
         if not self.controller.current_user:  # if no one is logged in
@@ -335,11 +355,70 @@ class wallet_frame(CTkFrame):
         self.tx_amount.delete(0, END)
         self.error_message.configure(text=f"Withdrew ${amount:.2f} ")
         self.balance_refresh()
+        self.refresh_history()  
 
     def on_show(self):
         self.error_message.configure(text="")
         self.tx_amount.delete(0, END)
         self.balance_refresh()
+        self.refresh_history()  
+
+    def refresh_history(self):
+        # clear previous history widgets
+        for w in self.history_scroll.winfo_children():
+            w.destroy()
+
+        if not self.controller.current_user:  # if we're not logged in (tbh this is just so the thing loads anyway but we don't see it)
+            return
+
+        user_id = self.controller.current_user["user_id"]
+        tx_list = backEnd.get_wallet_transactions(user_id)
+
+        if not tx_list:  # if theres no transactions yet
+            CTkLabel(
+                self.history_scroll,
+                text="No transactions yet.",
+                font=("Open Sans", 12),
+                text_color="gray"
+            ).pack(pady=10)
+            return
+
+        for tx in tx_list:
+            row = CTkFrame(self.history_scroll, fg_color="#2b2b2b", corner_radius=8)
+            row.pack(fill="x", pady=4, padx=2)
+
+            # left: type + date
+            left = CTkFrame(row, fg_color="transparent")
+            left.pack(side="left", padx=10, pady=8, fill="x", expand=True)
+
+            tx_type = tx["tx_type"]       # 'DEPOSIT', 'WITHDRAW', 'BET', 'WIN'
+            created = tx["created_at"]    # datetime or string depending on connector
+
+            CTkLabel(
+                left,
+                text=tx_type.title(),
+                font=("Open Sans", 12, "bold"),
+                text_color="#ff7a00" if tx_type in ("DEPOSIT", "WIN") else "white"
+            ).pack(anchor="w")
+
+            CTkLabel(
+                left,
+                text=str(created),
+                font=("Open Sans", 10),
+                text_color="gray"
+            ).pack(anchor="w")
+
+            # right: amount
+            amount = float(tx["amount"])
+            sign_color = "green" if amount > 0 else "red"
+
+            CTkLabel(
+                row,
+                text=f"${amount:.2f}",
+                font=("Open Sans", 12, "bold"),
+                text_color=sign_color
+            ).pack(side="right", padx=10)
+
 
 # these are the little previews we see of each sports event, an instant of this class will be created for each sports event we want displayed on the home screen
 class sports_frame(CTkFrame):
@@ -404,12 +483,12 @@ class betting_frame(CTkFrame):
     
     def build_ui(self):
         # Title
-        CTkLabel(self, text="Place Your Bet", font=("Open Sans", 24, "bold")).pack(pady=20)
+        CTkLabel(self, text="Place Your Bet", font=("Open Sans", 24, "bold"), text_color="#ff7a00").pack(pady=20)
         
         # Event details card
         self.event_card = CTkFrame(self, fg_color="#2b2b2b", corner_radius=15)
         self.event_card.pack(fill="x", padx=40, pady=10)
-        
+
         self.event_title = CTkLabel(self.event_card, text="Select an event", 
                                    font=("Open Sans", 18, "bold"), text_color="white")
         self.event_title.pack(pady=20)
@@ -429,19 +508,19 @@ class betting_frame(CTkFrame):
         self.outcome_var = StringVar(value="HOME_WIN")
         self.home_radio = CTkRadioButton(bet_section, text="Home Win", 
                                        variable=self.outcome_var, value="HOME_WIN",
-                                       font=("Open Sans", 14), radiobutton_width=30,
+                                       font=("Open Sans", 14), radiobutton_width=30, fg_color="#ff7a00", hover_color="#cc6100",
                                        command=self.update_potential_winnings)
         self.home_radio.pack(anchor="w", pady=5)
         
         self.draw_radio = CTkRadioButton(bet_section, text="Draw", 
                                        variable=self.outcome_var, value="DRAW",
-                                       font=("Open Sans", 14), radiobutton_width=30,
+                                       font=("Open Sans", 14), radiobutton_width=30, fg_color="#ff7a00", hover_color="#cc6100", 
                                        command=self.update_potential_winnings)
         self.draw_radio.pack(anchor="w", pady=5)
         
         self.away_radio = CTkRadioButton(bet_section, text="Away Win", 
                                        variable=self.outcome_var, value="AWAY_WIN",
-                                       font=("Open Sans", 14), radiobutton_width=30,
+                                       font=("Open Sans", 14), radiobutton_width=30, fg_color="#ff7a00", hover_color="#cc6100",
                                        command=self.update_potential_winnings)
         self.away_radio.pack(anchor="w", pady=5)
         
@@ -544,9 +623,6 @@ class betting_frame(CTkFrame):
         except Exception as e:
             print(f"Update winnings error: {e}")
             self.winnings_label.configure(text="Potential Winnings: $0.00")
-
-
-
     
     def place_bet(self):
         if not self.current_event or not self.controller.current_user:
@@ -575,7 +651,7 @@ class betting_frame(CTkFrame):
                 self.controller.current_user = self.controller.backend.get_user(
                     self.controller.current_user['username'])  # Refresh user balance
                 self.controller.refresh_header()
-                self.controller.frames["wallet_frame"].balance_refresh()
+                self.controller.frames["account_frame"].balance_refresh()
                 self.controller.show_frame("home_frame")
             else:
                 print("Bet failed - check balance/event status")
@@ -584,6 +660,20 @@ class betting_frame(CTkFrame):
             print("Invalid amount")
         except KeyError:
             print("Invalid outcome selected")
+
+    def on_show(self):
+        self.balance_warning.configure(text="")
+        self.amount_entry.delete(0, END)
+        self.place_bet_btn.configure(state="disabled")
+
+        if self.current_event:
+            self.update_potential_winnings()
+        else:
+            self.event_title.configure(text="Select an event")
+            self.event_details.configure(text="")
+            self.winnings_label.configure(text="Potential Winnings: $0.00")
+            self.odds_label.configure(text="Odds: -")
+
 
     
 
