@@ -8,7 +8,8 @@ class app(CTk):  # extending upon the tk.Tk class, this one defines the main GUI
         super().__init__()  # we run the parent class initialisation too (so inherit all methods from tk.Tk)
         self.backend = backend  # storing the backend so frames can use it
         self.title("BE-THE-ONE")  # setting text in the window title bar (.title is a method from tk.Tk)
-        # self.geometry("800x600")  # setting window size
+        self.geometry("2400x1600")  # setting window size
+        # self.attributes("-fullscreen", True)  # making it fullscreen on opening
         set_appearance_mode("dark")  # always dark mode (:
 
         self.current_user = None  # to store the logged-in user later
@@ -58,6 +59,11 @@ class app(CTk):  # extending upon the tk.Tk class, this one defines the main GUI
             else:  # on any other page it's the account one
                 self.accountBtn.configure(text="Account", command=lambda: self.show_frame("account_frame"))
 
+        if name == "account_frame":  # all the things we always wanna do on the account frame
+            backEnd.settle_past_events_random()
+            frame.balance_refresh()
+            frame.refresh_history()
+
         frame.tkraise()  # this is a tk builtin function that brings the frame to the front (so its displayed/visible)
 
     def refresh_header(self):
@@ -100,6 +106,9 @@ class home_frame(CTkFrame):  # inheriting from the tk class Frame
         self.refresh_events()
         
     def refresh_events(self):
+        
+        backEnd.settle_past_events_random()  # settling all events that have passed
+
         # Clear existing event frames
         for widget in self.events_scroll.winfo_children():
             widget.destroy()
@@ -274,10 +283,14 @@ class account_frame(CTkFrame):
     def __init__(self, parent, controller):
         super().__init__(parent)
         self.controller = controller
+        # since there's a lot of stuff on this page we need it to all be scrollable, then we attach all frames to this
+        self.main_scroll = CTkScrollableFrame(self, fg_color="transparent")
+        self.main_scroll.pack(fill="both", expand=True)
 
-        CTkLabel(self, text="Wallet", font=("Open Sans", 20, "bold"), text_color="#ff7a00").pack(pady=10)
+        # displaying all the wallet things
+        CTkLabel(self.main_scroll, text="Wallet", font=("Open Sans", 20, "bold"), text_color="#ff7a00").pack(pady=10)
 
-        self.balanceFrame = CTkFrame(self)
+        self.balanceFrame = CTkFrame(self.main_scroll)
         self.balanceFrame.pack(padx=50, pady=50, ipadx=100, ipady=50, fill="x") 
         CTkLabel(self.balanceFrame, text="Balance", font=("Open Sans", 16, "bold")).pack(pady=(20, 10))
         self.balanceTxt = CTkLabel(self.balanceFrame, text="$0.00", font=("Open Sans", 20, "bold"))  # initialised with a $0.00 (although this is never seen if not logged in)
@@ -298,14 +311,20 @@ class account_frame(CTkFrame):
                    command=self.deposit_click
         ).pack(side="right", pady=10, padx=(10, 180))
 
-        CTkLabel(self, text="Transaction History", font=("Open Sans", 20, "bold"), text_color="#ff7a00").pack(pady=10)
+        # displaying all bets made
+        CTkLabel(self.main_scroll, text="My Bets", font=("Open Sans", 20, "bold"), text_color="#ff7a00").pack(pady=10)
 
-        self.history_scroll = CTkScrollableFrame(self, fg_color="transparent")
+        self.bets_scroll = CTkScrollableFrame(self.main_scroll, fg_color="transparent")
+        self.bets_scroll.pack(fill="both", expand=True, padx=40, pady=(0, 20))
+
+        self.refresh_my_bets()
+
+        # displaying all the transaction history
+        CTkLabel(self.main_scroll, text="Transaction History", font=("Open Sans", 20, "bold"), text_color="#ff7a00").pack(pady=10)
+
+        self.history_scroll = CTkScrollableFrame(self.main_scroll, fg_color="transparent")
         self.history_scroll.pack(fill="both", expand=True, padx=40, pady=(0, 20))
-
         self.refresh_history()
-
-
     
     def balance_refresh(self):
         if self.controller.current_user:
@@ -361,6 +380,8 @@ class account_frame(CTkFrame):
         self.tx_amount.delete(0, END)
         self.balance_refresh()
         self.refresh_history()  
+        self.refresh_my_bets()  
+        self.main_scroll.update_idletasks()
 
     def refresh_history(self):
         # clear previous history widgets
@@ -417,6 +438,43 @@ class account_frame(CTkFrame):
                 font=("Open Sans", 12, "bold"),
                 text_color=sign_color
             ).pack(side="right", padx=10)
+
+    def refresh_my_bets(self):
+        if not self.controller.current_user:  # if not logged in 
+            return
+        
+        # clear previous bet widgets
+        for w in self.bets_scroll.winfo_children():
+            w.destroy()
+
+        user_id = self.controller.current_user["user_id"]
+        bets = backEnd.get_user_bets(user_id)
+
+        if not bets:
+            CTkLabel(self.bets_scroll, text="No bets placed yet.", font=("Open Sans", 12), text_color="gray").pack(pady=10)
+            return
+
+        for bet in bets:
+            row = CTkFrame(self.bets_scroll, fg_color="#2b2b2b", corner_radius=8)
+            row.pack(fill="x", pady=4, padx=2)
+
+            left = CTkFrame(row, fg_color="transparent")
+            left.pack(side="left", padx=10, pady=8, fill="x", expand=True)
+
+            # formatting text fields
+            teams = f"{bet['team1']} vs {bet['team2']}"
+            selected = bet['selected_option']
+            result = bet['result']
+            # left side labels
+            CTkLabel(left, text=teams, font=("Open Sans", 12, "bold"), text_color="white").pack(anchor="w")
+            CTkLabel(left, text=f"Picked: {selected} • Odds: {bet['odds']}", font=("Open Sans", 11), text_color="gray").pack(anchor="w")
+            result_color = {"WON": "green", "LOST": "red", "PENDING": "#ff7a00"}.get(result, "white")  # result colours
+            CTkLabel(left, text=f"Result: {result}", font=("Open Sans", 11, "bold"), text_color=result_color).pack(anchor="w")
+
+            # amount (right side)
+            amount = float(bet['amount'])
+            CTkLabel(row, text=f"${amount:.2f}", font=("Open Sans", 12, "bold"), text_color="white").pack(side="right", padx=10)
+
 
 
 # these are the little previews we see of each sports event, an instant of this class will be created for each sports event we want displayed on the home screen

@@ -1,6 +1,8 @@
 import mysql.connector  
 import bcrypt  # for encrypting passwords
 from datetime import datetime
+import random 
+
 
 
 # user CRUD management
@@ -289,3 +291,132 @@ def get_wallet_transactions(user_id, limit=10):  # only show past 10 txs bc othe
     cursor.close()
     conn.close()
     return rows
+
+# here we connect the bet with the sport event to get all the bets from a specific user
+def get_user_bets(user_id):
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    sql = """
+        SELECT 
+            b.*,
+            s.sport_type,
+            s.team1,
+            s.team2,
+            s.event_date,
+            s.bet_status
+        FROM bets b
+        JOIN sports_events s ON b.event_id = s.event_id
+        WHERE b.user_id = %s
+        ORDER BY s.event_date DESC, b.created_at DESC
+    """
+    cursor.execute(sql, (user_id,))
+    rows = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+    return rows
+
+def _pick_random_outcome():  # this is just to randomly choose an outcome of the event
+    return random.choice(["TEAM1", "TEAM2", "DRAW"])
+
+def settle_event_random(event_id):
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    cursor.execute(
+        "SELECT * FROM sports_events WHERE event_id = %s FOR UPDATE",
+        (event_id,)
+    )
+    event = cursor.fetchone()
+    if not event or event["bet_status"] != "OPEN":
+        print("Event cannot be settled (not found or not OPEN).")
+        return 0
+
+    winning_option = _pick_random_outcome()
+    print(f"Settling event {event_id} with random winner: {winning_option}")
+
+    # get all pending bets for this event
+    cursor.execute(
+        "SELECT * FROM bets WHERE event_id = %s AND result = 'PENDING'",
+        (event_id,)
+    )
+    bets = cursor.fetchall()
+
+    # start transaction
+    cursor.execute("START TRANSACTION")
+
+    # here we go through each bet placed on an event, and for every user that bet, mark the bet as won/lost and update their balance if they won
+    for bet in bets:  # so for each bet made by all the users for that one specific event
+        bet_id = bet["bet_id"]
+        user_id = bet["user_id"]
+        amount = float(bet["amount"])
+        odds = float(bet["odds"])
+        selected = bet["selected_option"]
+
+        if selected == winning_option:
+            win_amount = round(amount * odds, 2)
+
+            cursor.execute(
+                "UPDATE bets SET result = 'WON' WHERE bet_id = %s",  # mark bet as WON
+                (bet_id,)
+            )
+
+            cursor.execute( # wallet transaction for WIN
+                """
+                INSERT INTO wallet_transactions (user_id, amount, tx_type)
+                VALUES (%s, %s, 'WIN')
+                """,
+                (user_id, win_amount)
+            )
+
+            cursor.execute(  # update user balance
+                "UPDATE users SET balance = balance + %s WHERE user_id = %s",
+                (win_amount, user_id)
+            )
+        else:
+            cursor.execute(  # mark bet as LOST, the user doesn't get any money back from the bet
+                "UPDATE bets SET result = 'LOST' WHERE bet_id = %s",
+                (bet_id,)
+            )
+
+    cursor.execute(  # mark event as SETTLED after we finish going through all bets placed on it
+        "UPDATE sports_events SET bet_status = 'SETTLED' WHERE event_id = %s",
+        (event_id,)
+    )
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    return len(bets)  # just to know how many bets were placed
+
+# for any event that has PASSED we need to get the result of the game
+def settle_past_events_random(cutoff_datetime=None):
+    if cutoff_datetime is None:
+        cutoff_datetime = datetime.now()  # this will have to adjust to our frozen in time
+
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    cursor.execute(
+        """
+        SELECT * FROM sports_events
+        WHERE bet_status = 'OPEN' AND event_date <= %s
+        """,
+        (cutoff_datetime,)
+    )
+    events = cursor.fetchall()
+
+    count = 0
+    for event in events:  # for each event that is happening
+        event_id = event["event_id"]
+        # reuse the single-event function
+        settled_bets = settle_event_random(event_id)
+        if settled_bets >= 0:
+            count += 1
+
+    cursor.close()
+    conn.close()
+    return count
+
