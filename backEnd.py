@@ -3,7 +3,7 @@ import bcrypt  # for encrypting passwords
 from datetime import datetime
 import random 
 
-
+FROZEN_NOW = datetime(2025, 3, 15, 12, 0, 0)  # this is because we're not implenting an actual API, and just a frozen in time sort of app :/
 
 # user CRUD management
 # making the connection to the mysql db
@@ -124,16 +124,18 @@ def get_sports_events():
     conn.close()
     return events  # Returns list of dicts like [{'event_id':1, 'team1':'Real Madrid', 'team2':'Barcelona', 'odds':1.8, ...}]
 
-def update_event_status_by_cutoff(cutoff_live_start, cutoff_live_end): #Update bet_status using frontend cutoff values
+def update_event_status_by_cutoff(): #Update bet_status using frontend cutoff values
     conn = get_connection()
     cursor = conn.cursor()
     
     # Convert Python datetime to MySQL format for comparison
-    cutoff_start_str = cutoff_live_start.strftime('%Y-%m-%d %H:%M:%S')
-    cutoff_end_str = cutoff_live_end.strftime('%Y-%m-%d %H:%M:%S')
+    # cutoff_start_str = cutoff_live_start.strftime('%Y-%m-%d %H:%M:%S')
+    # cutoff_end_str = cutoff_live_end.strftime('%Y-%m-%d %H:%M:%S')
+
+    cutoff_str = FROZEN_NOW.strftime('%Y-%m-%d %H:%M:%S')  # this is the cutoff date that we chose
     
     # Update past events to CLOSED
-    cursor.execute("UPDATE sports_events SET bet_status = 'CLOSED' WHERE event_date < %s AND bet_status = 'OPEN'", (cutoff_start_str,))
+    cursor.execute("UPDATE sports_events SET bet_status = 'CLOSED' WHERE event_date < %s AND bet_status = 'OPEN'", (cutoff_str,))
     
     updated = cursor.rowcount
     conn.commit()
@@ -394,7 +396,7 @@ def settle_event_random(event_id):
 # for any event that has PASSED we need to get the result of the game
 def settle_past_events_random(cutoff_datetime=None):
     if cutoff_datetime is None:
-        cutoff_datetime = datetime.now()  # this will have to adjust to our frozen in time
+        cutoff_datetime = FROZEN_NOW  # datetime.now() this is adjust to our frozen in time
 
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)

@@ -112,35 +112,36 @@ class home_frame(CTkFrame):  # inheriting from the tk class Frame
         # Clear existing event frames
         for widget in self.events_scroll.winfo_children():
             widget.destroy()
+
+        frozen_now = backEnd.FROZEN_NOW  # using our frozen time
         
         # Define cutoff datetime for live category
-        cutoff_live_start = datetime(2025, 1, 1, 0, 0, 1)  # Feb 3rd 1:00 AM
-        cutoff_live_end = datetime(2025, 2, 3, 2, 59, 59)  # Feb 3rd 2:59 AM
+        # cutoff_live_start = datetime(2025, 1, 1, 0, 0, 1)  # Feb 3rd 1:00 AM
+        # cutoff_live_end = datetime(2025, 2, 3, 2, 59, 59)  # Feb 3rd 2:59 AM
 
-        #self.controller.backend.update_event_status_by_cutoff(cutoff_live_start, cutoff_live_end)
+        self.controller.backend.update_event_status_by_cutoff()
         
         # Fetch events from backend
         events = self.controller.backend.get_sports_events()
         
-        open_events = []
-        closed_events = []
+        live_events = []
+        upcoming_events = []
+        past_events = []
         settled_events = []
 
         for event in events:
-            
-            event_date_str = str(event['event_date'])
-            
-            event_dt = datetime.strptime(event_date_str, "%Y-%m-%d %H:%M:%S")
-                
-            if cutoff_live_start <= event_dt <= cutoff_live_end:
+            event_dt = event['event_date']
+            if isinstance(event_dt, str):
+                event_dt = datetime.strptime(event_dt, "%Y-%m-%d %H:%M:%S")
+            if event_dt.date() == frozen_now.date():  # everything happening “today” is considered LIVE
                 event['temp_status'] = 'LIVE'
-                open_events.append(event)
-            elif event_dt > cutoff_live_end:
+                live_events.append(event)
+            elif event_dt > frozen_now:
                 event['temp_status'] = 'OPEN'
-                open_events.append(event)
+                upcoming_events.append(event)
             else:
                 event['temp_status'] = 'CLOSED'
-                closed_events.append(event)
+                past_events.append(event)
 
         settled_events = [e for e in events if e.get('bet_status') == 'SETTLED']
         
@@ -153,9 +154,10 @@ class home_frame(CTkFrame):  # inheriting from the tk class Frame
                 sports_preview = sports_frame(section_frame, self.controller, event)
                 sports_preview.pack(fill="x", pady=5)
 
-        populate_section("Live Events", open_events)
-        populate_section("Upcoming Events", closed_events)
-        populate_section("Past Events", settled_events)
+
+        populate_section("Live Events", live_events)
+        populate_section("Upcoming Events", upcoming_events)
+        populate_section("Past Events", settled_events or past_events)
         
 class login_frame(CTkFrame):
     def __init__(self, parent, controller):
@@ -306,10 +308,10 @@ class account_frame(CTkFrame):
 
         CTkButton(self.balanceFrame, text="Withdraw", fg_color="#ff7a00", hover_color="#cc6100", text_color="white", font=("Open Sans", 12, "bold"), 
                    command=self.withdraw_click
-                   ).pack(side="left", pady=10, padx=(180, 10))
+                   ).pack(side="left", pady=10, padx=(510, 10))
         CTkButton(self.balanceFrame, text="Deposit", fg_color="#ff7a00", hover_color="#cc6100", text_color="white", font=("Open Sans", 12, "bold"), 
                    command=self.deposit_click
-        ).pack(side="right", pady=10, padx=(10, 180))
+        ).pack(side="right", pady=10, padx=(10, 510))
 
         # displaying all bets made
         CTkLabel(self.main_scroll, text="My Bets", font=("Open Sans", 20, "bold"), text_color="#ff7a00").pack(pady=10)
